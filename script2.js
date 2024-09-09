@@ -26,47 +26,46 @@ window.addEventListener('DOMContentLoaded', (event) => {
 
 function detectDeviceType() {
     const userAgent = navigator.userAgent;
-
-    if (/Mobi|Android|iPhone|iPad|iPod/.test(userAgent)) {
-        isMobileOrTablet = true;
-    } else {
-        isMobileOrTablet = false;
-    }
+    isMobileOrTablet = /Mobi|Android|iPhone|iPad|iPod/.test(userAgent);
 }
 
+let debounceTimer;
 window.addEventListener('mousemove', (e) => {
     if (detectionDone || isMobileOrTablet) return;
 
-    let currentTime = performance.now();
-    let x = e.clientX;
-    let y = e.clientY;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        let currentTime = performance.now();
+        let x = e.clientX;
+        let y = e.clientY;
 
-    if (prevTime !== undefined) {
-        let deltaTime = (currentTime - prevTime) / 1000;
-        let deltaX = x - prevX;
-        let deltaY = y - prevY;
+        if (prevTime !== undefined) {
+            let deltaTime = (currentTime - prevTime) / 1000;
+            let deltaX = x - prevX;
+            let deltaY = y - prevY;
 
-        let traveledDistance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
-        let direction = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-        let straightness = Math.abs(deltaX / traveledDistance);
+            let traveledDistance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
+            let direction = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+            let straightness = Math.abs(deltaX / traveledDistance);
 
-        let velocity = traveledDistance / deltaTime;
-        let acceleration = (velocity - prevVelocity) / deltaTime;
-        let jerk = (acceleration - prevAcceleration) / deltaTime;
+            let velocity = traveledDistance / deltaTime;
+            let acceleration = (velocity - prevVelocity) / deltaTime;
+            let jerk = (acceleration - prevAcceleration) / deltaTime;
 
-        mouseData.push({ traveledDistance, deltaTime, direction, straightness, acceleration, jerk });
+            mouseData.push({ traveledDistance, deltaTime, direction, straightness, acceleration, jerk });
 
-        prevVelocity = velocity;
-        prevAcceleration = acceleration;
+            prevVelocity = velocity;
+            prevAcceleration = acceleration;
 
-        if (mouseData.length > 50) {
-            detectUserOrBot();
+            if (mouseData.length > 50) {
+                detectUserOrBot();
+            }
         }
-    }
 
-    prevTime = currentTime;
-    prevX = x;
-    prevY = y;
+        prevTime = currentTime;
+        prevX = x;
+        prevY = y;
+    }, 100); // Debounce time (100ms)
 });
 
 function calculateRealTimeFeatures(data) {
@@ -81,7 +80,7 @@ function calculateRealTimeFeatures(data) {
 }
 
 function calculateEuclideanDistance(realTimeFeatures, centroid) {
-    let distance = Math.sqrt(
+    return Math.sqrt(
         (realTimeFeatures.traveled_distance_pixel - centroid.traveled_distance_pixel) ** 2 +
         (realTimeFeatures.elapsed_time - centroid.elapsed_time) ** 2 +
         (realTimeFeatures.straightness - centroid.straightness) ** 2 +
@@ -89,10 +88,11 @@ function calculateEuclideanDistance(realTimeFeatures, centroid) {
         (realTimeFeatures.acceleration - centroid.acceleration) ** 2 +
         (realTimeFeatures.jerk - centroid.jerk) ** 2
     );
-    return distance;
 }
 
 function detectUserOrBot() {
+    if (detectionDone) return;
+
     let isLegitimateUser = true;
 
     if (!isMobileOrTablet) {
@@ -116,6 +116,7 @@ function detectUserOrBot() {
         isLegitimateUser = checkAdditionalEnvironmentalFactors();
     }
 
+    detectionDone = true;
     updateVerificationBox(isLegitimateUser);
 }
 
@@ -131,29 +132,22 @@ function checkRateLimiting() {
     const currentTime = Date.now();
 
     if (currentTime - startTime > TIME_WINDOW) {
-        // Reset the request count and start time after the time window has passed
         requestCount = 0;
         startTime = currentTime;
     }
 
     requestCount++;
 
-    if (requestCount > RATE_LIMIT) {
-        return true; // Rate-limited
-    } else {
-        return false; // Not rate-limited
-    }
+    return requestCount > RATE_LIMIT;
 }
 
 function checkIPReputation() {
     // Implementation for IP address reputation check
-    // For example, you might use an external API to check IP reputation
     return true; // Example return value
 }
 
 function checkBrowserFingerprint() {
     // Implementation for browser fingerprint check
-    // For example, you might check if the browser is consistent with previous visits
     return true; // Example return value
 }
 
@@ -166,12 +160,12 @@ function updateVerificationBox(isLegitimateUser) {
         checkbox.checked = true;
         statusLabel.textContent = "Verified User";
         statusLabel.style.color = "green";
-        submitButton.disabled = false; // Enable submit button
+        submitButton.disabled = false;
     } else {
         checkbox.checked = false;
         statusLabel.textContent = "Bot Detected!";
         statusLabel.style.color = "red";
-        submitButton.disabled = true; // Disable submit button
+        submitButton.disabled = true;
     }
 }
 
